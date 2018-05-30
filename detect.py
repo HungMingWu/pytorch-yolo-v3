@@ -10,7 +10,7 @@ import argparse
 import os 
 import os.path as osp
 from darknet import Darknet
-from preprocess import prep_image, inp_to_image
+from preprocess import prep_image
 import pandas as pd
 import random 
 import pickle as pkl
@@ -28,7 +28,7 @@ class test_net(nn.Module):
         fwd = nn.Sequential(self.linear_1, *self.middle, self.output)
         return fwd(x)
         
-def get_test_input(input_dim, CUDA):
+def get_test_input(input_dim):
     img = cv2.imread("dog-cycle-car.png")
     img = cv2.resize(img, (input_dim, input_dim)) 
     img_ =  img[:,:,::-1].transpose((2,0,1))
@@ -36,8 +36,6 @@ def get_test_input(input_dim, CUDA):
     img_ = torch.from_numpy(img_).float()
     img_ = Variable(img_)
     
-    if CUDA:
-        img_ = img_.cuda()
     num_classes
     return img_
 
@@ -96,8 +94,6 @@ if __name__ ==  '__main__':
     nms_thesh = float(args.nms_thresh)
     start = 0
 
-    CUDA = torch.cuda.is_available()
-
     num_classes = 80
     classes = load_classes('data/coco.names') 
 
@@ -112,11 +108,6 @@ if __name__ ==  '__main__':
     assert inp_dim % 32 == 0 
     assert inp_dim > 32
 
-    #If there's a GPU availible, put the model on GPU
-    if CUDA:
-        model.cuda()
-    
-    
     #Set the model in evaluation mode
     model.eval()
     
@@ -142,11 +133,6 @@ if __name__ ==  '__main__':
     im_dim_list = [x[2] for x in batches]
     im_dim_list = torch.FloatTensor(im_dim_list).repeat(1,2)
     
-    
-    
-    if CUDA:
-        im_dim_list = im_dim_list.cuda()
-    
     leftover = 0
     
     if (len(im_dim_list) % batch_size):
@@ -163,7 +149,7 @@ if __name__ ==  '__main__':
     
 
     write = False
-    model(get_test_input(inp_dim, CUDA), CUDA)
+    model(get_test_input(inp_dim))
     
     start_det_loop = time.time()
     
@@ -174,9 +160,6 @@ if __name__ ==  '__main__':
     for batch in im_batches:
         #load the image 
         start = time.time()
-        if CUDA:
-            batch = batch.cuda()
-        
 
         #Apply offsets to the result predictions
         #Tranform the predictions as described in the YOLO paper
@@ -184,7 +167,7 @@ if __name__ ==  '__main__':
         # B x (bbox cord x no. of anchors) x grid_w x grid_h --> B x bbox x (all the boxes) 
         # Put every proposed box as a row.
         with torch.no_grad():
-            prediction = model(Variable(batch), CUDA)
+            prediction = model(Variable(batch))
         
         prediction = prediction[:,scales_indices]
 
@@ -232,10 +215,6 @@ if __name__ ==  '__main__':
             print("{0:20s} {1:s}".format("Objects Detected:", " ".join(objs)))
             print("----------------------------------------------------------")
         i += 1
-
-        
-        if CUDA:
-            torch.cuda.synchronize()
     
     try:
         output
@@ -307,11 +286,3 @@ if __name__ ==  '__main__':
     print("{:25s}: {:2.3f}".format("Average time_per_img", (end - load_batch)/len(imlist)))
     print("----------------------------------------------------------")
 
-    
-    torch.cuda.empty_cache()
-    
-    
-        
-        
-    
-    

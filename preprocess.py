@@ -8,7 +8,6 @@ import numpy as np
 import cv2 
 import matplotlib.pyplot as plt
 from util import count_parameters as count
-from util import convert2cpu as cpu
 from PIL import Image, ImageDraw
 
 
@@ -52,17 +51,3 @@ def prep_image_pil(img, network_dim):
     img = img.view(1, 3,*network_dim)
     img = img.float().div(255.0)
     return (img, orig_im, dim)
-
-def inp_to_image(inp):
-    inp = inp.cpu().squeeze()
-    inp = inp*255
-    try:
-        inp = inp.data.numpy()
-    except RuntimeError:
-        inp = inp.numpy()
-    inp = inp.transpose(1,2,0)
-
-    inp = inp[:,:,::-1]
-    return inp
-
-
