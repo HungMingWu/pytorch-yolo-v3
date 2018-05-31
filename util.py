@@ -7,7 +7,6 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 import numpy as np
 import cv2 
-import matplotlib.pyplot as plt
 from bbox import bbox_iou
 
 def count_parameters(model):

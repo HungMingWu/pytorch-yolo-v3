@@ -43,58 +43,18 @@ class EmptyLayer(nn.Module):
         
 
 class DetectionLayer(nn.Module):
-    def __init__(self, anchors):
+    def __init__(self, anchors, inp_dim, num_classes):
         super(DetectionLayer, self).__init__()
         self.anchors = anchors
+        self.inp_dim = inp_dim
+        self.num_classes = num_classes
     
-    def forward(self, x, inp_dim, num_classes, confidence):
+    def forward(self, x):
         x = x.data
         prediction = x
-        prediction = predict_transform(prediction, inp_dim, self.anchors, num_classes, confidence)
+        prediction = predict_transform(prediction, self.inp_dim, self.anchors, self.num_classes)
         return prediction
         
-
-        
-
-
-class Upsample(nn.Module):
-    def __init__(self, stride=2):
-        super(Upsample, self).__init__()
-        self.stride = stride
-        
-    def forward(self, x):
-        stride = self.stride
-        assert(x.data.dim() == 4)
-        B = x.data.size(0)
-        C = x.data.size(1)
-        H = x.data.size(2)
-        W = x.data.size(3)
-        ws = stride
-        hs = stride
-        x = x.view(B, C, H, 1, W, 1).expand(B, C, H, stride, W, stride).contiguous().view(B, C, H*stride, W*stride)
-        return x
-#       
-        
-class ReOrgLayer(nn.Module):
-    def __init__(self, stride = 2):
-        super(ReOrgLayer, self).__init__()
-        self.stride= stride
-        
-    def forward(self,x):
-        assert(x.data.dim() == 4)
-        B,C,H,W = x.data.shape
-        hs = self.stride
-        ws = self.stride
-        assert(H % hs == 0),  "The stride " + str(self.stride) + " is not a proper divisor of height " + str(H)
-        assert(W % ws == 0),  "The stride " + str(self.stride) + " is not a proper divisor of height " + str(W)
-        x = x.view(B,C, H // hs, hs, W // ws, ws).transpose(-2,-3).contiguous()
-        x = x.view(B,C, H // hs * W // ws, hs, ws)
-        x = x.view(B,C, H // hs * W // ws, hs*ws).transpose(-1,-2).contiguous()
-        x = x.view(B, C, ws*hs, H // ws, W // ws).transpose(1,2).contiguous()
-        x = x.view(B, C*ws*hs, H // ws, W // ws)
-        return x
-
-
 def create_modules(blocks):
     net_info = blocks[0]     #Captures the information about the input and pre-processing    
     
@@ -211,8 +171,11 @@ def create_modules(blocks):
             anchors = [int(a) for a in anchors]
             anchors = [(anchors[i], anchors[i+1]) for i in range(0, len(anchors),2)]
             anchors = [anchors[i] for i in mask]
-            
-            detection = DetectionLayer(anchors)
+            #Get the input dimensions
+            inp_dim = int (net_info["height"])
+            #Get the number of classes
+            num_classes = int (x["classes"])
+            detection = DetectionLayer(anchors, inp_dim, num_classes)
             module.add_module("Detection_{}".format(index), detection)
             
             
@@ -288,17 +251,8 @@ class Darknet(nn.Module):
                 outputs[i] = x
             
             elif module_type == 'yolo':        
-                
-                anchors = self.module_list[i][0].anchors
-                #Get the input dimensions
-                inp_dim = int (self.net_info["height"])
-                
-                #Get the number of classes
-                num_classes = int (modules[i]["classes"])
-                
                 #Output the result
-                x = x.data
-                x = predict_transform(x, inp_dim, anchors, num_classes)
+                x = self.module_list[i](x)
                 
                 if type(x) == int:
                     continue
